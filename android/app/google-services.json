@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "837477271540",
+    "project_id": "project1-c8b30",
+    "storage_bucket": "project1-c8b30.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837477271540:android:ea63adc891a611fc775ba1",
+        "android_client_info": {
+          "package_name": "com.tap.u"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "837477271540-97hpuqqg42slm557jthtm1le55mrv679.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tap.u",
+            "certificate_hash": "459194d8430fb3bee6d2b8cba17055f472736e6b"
+          }
+        },
+        {
+          "client_id": "837477271540-57vcqsmnap6uv12i6pdaa78c03l212tf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPPzkId0ZV0hyXghNyFlaJ4zyQAMHJLN0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "837477271540-57vcqsmnap6uv12i6pdaa78c03l212tf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "837477271540-8i0cec6lltfks7cn3eipmjgu9heouhah.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterProject"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
