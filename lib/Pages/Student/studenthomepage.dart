@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../JoinClassPage.dart';
 import '../../helpers/biometric_helper.dart';
 import '../login.dart';
-import 'StudentClassPage.dart'; // Use this instead of ClassDetailsPage
+import 'StudentClassPage.dart';
 
 class StudentHomepage extends StatefulWidget {
   const StudentHomepage({super.key});
@@ -39,8 +39,7 @@ class _StudentHomepageState extends State<StudentHomepage> {
     bool biometricFromFirestore = false;
 
     if (uid != null) {
-      final doc =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         nameFromFirestore = data['name'] ?? nameFromFirestore;
@@ -52,8 +51,7 @@ class _StudentHomepageState extends State<StudentHomepage> {
     setState(() {
       email = prefs.getString('email') ?? user?.email ?? 'Guest';
       displayName = nameFromFirestore;
-      profileImageUrl =
-          photoFromPrefs.isNotEmpty ? photoFromPrefs : (user?.photoURL ?? '');
+      profileImageUrl = photoFromPrefs.isNotEmpty ? photoFromPrefs : (user?.photoURL ?? '');
       biometricEnabled = biometricFromFirestore;
     });
 
@@ -106,37 +104,30 @@ class _StudentHomepageState extends State<StudentHomepage> {
     final classData = classDoc.data() as Map<String, dynamic>;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: Colors.blue[50],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 3,
       child: ListTile(
-        leading: classData['imageUrl'] != null &&
-                classData['imageUrl'].toString().trim().isNotEmpty
-            ? FadeInImage.assetNetwork(
-                placeholder: 'assets/classImage.png',
-                image: classData['imageUrl'],
-                height: 50,
-                width: 50,
-                fit: BoxFit.cover,
-                imageErrorBuilder: (context, error, stackTrace) {
-                  return Image.asset(
-                    'assets/classImage.png',
-                    height: 50,
-                    width: 50,
-                    fit: BoxFit.cover,
-                  );
-                },
-              )
-            : Image.asset(
-                'assets/classImage.png',
-                height: 50,
-                width: 50,
-                fit: BoxFit.cover,
-              ),
-        title: Text(classData['className'] ?? 'Unnamed Class'),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: classData['imageUrl'] != null && classData['imageUrl'].toString().trim().isNotEmpty
+              ? FadeInImage.assetNetwork(
+                  placeholder: 'assets/classImage.png',
+                  image: classData['imageUrl'],
+                  height: 50,
+                  width: 50,
+                  fit: BoxFit.cover,
+                  imageErrorBuilder: (context, error, stackTrace) {
+                    return Image.asset('assets/classImage.png', height: 50, width: 50, fit: BoxFit.cover);
+                  },
+                )
+              : Image.asset('assets/classImage.png', height: 50, width: 50, fit: BoxFit.cover),
+        ),
+        title: Text(classData['className'] ?? 'Unnamed Class', style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text("Schedule: ${classData['schedule'] ?? 'N/A'}"),
-        trailing: const Icon(Icons.arrow_forward),
-        onTap: () {
-          Get.to(() => StudentClassPage(classCode: classData['classCode']));
-        },
+        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.blue),
+        onTap: () => Get.to(() => StudentClassPage(classCode: classData['classCode'])),
       ),
     );
   }
@@ -148,12 +139,22 @@ class _StudentHomepageState extends State<StudentHomepage> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.white,
       drawer: Drawer(
         child: ListView(
           children: [
-            const DrawerHeader(child: Text("Menu")),
+            UserAccountsDrawerHeader(
+              decoration: const BoxDecoration(color: Colors.blue),
+              accountName: Text(displayName),
+              accountEmail: Text(email),
+              currentAccountPicture: CircleAvatar(
+                backgroundImage: profileImageUrl.isNotEmpty
+                    ? NetworkImage(profileImageUrl)
+                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
+              ),
+            ),
             ListTile(
-              leading: const Icon(Icons.logout),
+              leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text("Logout"),
               onTap: signOut,
             ),
@@ -161,22 +162,14 @@ class _StudentHomepageState extends State<StudentHomepage> {
         ),
       ),
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        backgroundColor: Colors.blue,
+        elevation: 0,
         title: Row(
           children: [
-            Builder(
-              builder:
-                  (context) => IconButton(
-                    icon: const Icon(Icons.menu),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  ),
-            ),
             CircleAvatar(
-              backgroundImage:
-                  profileImageUrl.isNotEmpty
-                      ? NetworkImage(profileImageUrl)
-                      : const AssetImage('assets/default_avatar.png')
-                          as ImageProvider,
+              backgroundImage: profileImageUrl.isNotEmpty
+                  ? NetworkImage(profileImageUrl)
+                  : const AssetImage('assets/default_avatar.png') as ImageProvider,
               radius: 18,
             ),
             const SizedBox(width: 10),
@@ -184,18 +177,16 @@ class _StudentHomepageState extends State<StudentHomepage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    displayName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text(displayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   Text(email, style: const TextStyle(fontSize: 12)),
                 ],
               ),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.yellow[700],
+                foregroundColor: Colors.black,
+              ),
               onPressed: () => Get.to(() => const JoinClassPage()),
               child: const Text("Join Class"),
             ),
@@ -205,24 +196,20 @@ class _StudentHomepageState extends State<StudentHomepage> {
       body: Column(
         children: [
           const SizedBox(height: 10),
-          Text("Welcome, $displayName", style: const TextStyle(fontSize: 18)),
+          Text("Welcome, $displayName", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
           const SizedBox(height: 10),
           ElevatedButton.icon(
             onPressed: biometricEnabled ? null : enableBiometricLogin,
             icon: const Icon(Icons.fingerprint),
-            label: Text(
-              biometricEnabled
-                  ? "Biometric Login Enabled"
-                  : "Enable Biometric Login",
+            label: Text(biometricEnabled ? "Biometric Login Enabled" : "Enable Biometric Login"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: biometricEnabled ? Colors.grey : Colors.blue,
             ),
           ),
-          const Divider(),
+          const Divider(thickness: 1.2),
           const Padding(
             padding: EdgeInsets.all(8.0),
-            child: Text(
-              "Joined Classes",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            child: Text("Joined Classes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: FutureBuilder<QuerySnapshot>(
@@ -240,27 +227,14 @@ class _StudentHomepageState extends State<StudentHomepage> {
                 return FutureBuilder<List<QueryDocumentSnapshot>>(
                   future: Future.wait(
                     allClassDocs.map((classDoc) async {
-                      final studentDoc =
-                          await classDoc.reference
-                              .collection('students')
-                              .doc(uid)
-                              .get();
-
-                      // If the user has joined this class, return the class document
-                      if (studentDoc.exists) {
-                        return classDoc;
-                      }
-
+                      final studentDoc = await classDoc.reference.collection('students').doc(uid).get();
+                      if (studentDoc.exists) return classDoc;
                       return null;
                     }),
-                  ).then(
-                    (list) => list.whereType<QueryDocumentSnapshot>().toList(),
-                  ),
+                  ).then((list) => list.whereType<QueryDocumentSnapshot>().toList()),
                   builder: (context, filteredSnapshot) {
                     if (filteredSnapshot.hasError) {
-                      return Center(
-                        child: Text('Error: ${filteredSnapshot.error}'),
-                      );
+                      return Center(child: Text('Error: ${filteredSnapshot.error}'));
                     }
                     if (!filteredSnapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
@@ -268,9 +242,7 @@ class _StudentHomepageState extends State<StudentHomepage> {
 
                     final joinedClasses = filteredSnapshot.data!;
                     if (joinedClasses.isEmpty) {
-                      return const Center(
-                        child: Text("You haven't joined any classes yet."),
-                      );
+                      return const Center(child: Text("You haven't joined any classes yet."));
                     }
 
                     return ListView(

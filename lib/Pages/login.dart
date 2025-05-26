@@ -21,6 +21,14 @@ class _LoginState extends State<Login> {
   TextEditingController email = TextEditingController();
   TextEditingController password = TextEditingController();
   bool isloading = false;
+  bool _obscurePassword = true;
+
+  // Minimalistic Color Scheme
+  static const Color primaryBlue = Color(0xFF2196F3);
+  static const Color primaryYellow = Color(0xFFFFC107);
+  static const Color lightGray = Color(0xFFF8F9FA);
+  static const Color textDark = Color(0xFF212529);
+  static const Color textLight = Color(0xFF6C757D);
 
   Future<void> signIn() async {
     setState(() => isloading = true);
@@ -35,7 +43,6 @@ class _LoginState extends State<Login> {
       final uid = userCredential.user!.uid;
       final prefs = await SharedPreferences.getInstance();
 
-      // Fetch role from Firestore
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       String role = doc.data()?['role'] ?? 'student';
@@ -49,9 +56,19 @@ class _LoginState extends State<Login> {
           ? Get.offAll(() => const StudentHomepage())
           : Get.offAll(() => const TeacherHomepage());
     } on FirebaseAuthException catch (e) {
-      Get.snackbar("Login Failed", e.message ?? e.code);
+      Get.snackbar(
+        "Login Failed",
+        e.message ?? e.code,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar("Error", e.toString());
+      Get.snackbar(
+        "Error",
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       setState(() => isloading = false);
     }
@@ -60,7 +77,7 @@ class _LoginState extends State<Login> {
   Future<void> signInWithGoogle() async {
     try {
       final googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut(); // Show account picker
+      await googleSignIn.signOut();
       final googleUser = await googleSignIn.signIn();
       if (googleUser == null) return;
 
@@ -93,8 +110,8 @@ class _LoginState extends State<Login> {
       } else {
         final data = doc.data()!;
         role = data['role'];
-        // Optionally refresh name/photo if missing
-        if (!(data.containsKey('name') && data.containsKey('profileImageUrl'))) {
+        if (!(data.containsKey('name') &&
+            data.containsKey('profileImageUrl'))) {
           await FirebaseFirestore.instance.collection('users').doc(uid).set({
             'name': user.displayName ?? 'Student',
             'profileImageUrl': user.photoURL ?? '',
@@ -102,14 +119,11 @@ class _LoginState extends State<Login> {
         }
       }
 
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('uid', uid);
       await prefs.setString('userUID', uid);
       await prefs.setString('userRole', role);
       await prefs.setString('email', user.email ?? '');
-
-      // ✅ Add these lines to show profile picture and name
       await prefs.setString('displayName', user.displayName ?? 'Student');
       if (user.photoURL != null) {
         await prefs.setString('profileImageUrl', user.photoURL!);
@@ -121,7 +135,12 @@ class _LoginState extends State<Login> {
         Get.offAll(() => const TeacherHomepage());
       }
     } catch (e) {
-      Get.snackbar("Google Sign-In Failed", e.toString());
+      Get.snackbar(
+        "Google Sign-In Failed",
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -134,33 +153,80 @@ class _LoginState extends State<Login> {
           builder: (context) {
             return StatefulBuilder(
               builder:
-                  (context, setState) => AlertDialog(
-                    title: const Text("Select your role"),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile<String>(
-                          value: "student",
-                          groupValue: selectedRole,
-                          title: const Text("Student"),
-                          onChanged:
-                              (value) => setState(() => selectedRole = value!),
-                        ),
-                        RadioListTile<String>(
-                          value: "teacher",
-                          groupValue: selectedRole,
-                          title: const Text("Teacher"),
-                          onChanged:
-                              (value) => setState(() => selectedRole = value!),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context, selectedRole);
-                          },
-                          child: const Text("Submit"),
-                        ),
-                      ],
+                  (context, setState) => Dialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: primaryYellow.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.person_outline,
+                              size: 30,
+                              color: primaryBlue,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            "Select Your Role",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _buildRoleOption(
+                            "student",
+                            "Student",
+                            Icons.school_outlined,
+                            selectedRole,
+                            (value) => setState(() => selectedRole = value!),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildRoleOption(
+                            "teacher",
+                            "Teacher",
+                            Icons.person_outline,
+                            selectedRole,
+                            (value) => setState(() => selectedRole = value!),
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context, selectedRole);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                "Continue",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
             );
@@ -169,11 +235,63 @@ class _LoginState extends State<Login> {
         "student";
   }
 
+  Widget _buildRoleOption(
+    String value,
+    String title,
+    IconData icon,
+    String groupValue,
+    Function(String?) onChanged,
+  ) {
+    bool isSelected = value == groupValue;
+    return GestureDetector(
+      onTap: () => onChanged(value),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? primaryBlue.withOpacity(0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? primaryBlue : Colors.grey.shade300,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? primaryBlue : textLight, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: isSelected ? primaryBlue : textDark,
+                ),
+              ),
+            ),
+            Radio<String>(
+              value: value,
+              groupValue: groupValue,
+              onChanged: onChanged,
+              activeColor: primaryBlue,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> signInWithBiometrics() async {
     final isAuthenticated = await BiometricHelper.authenticateWithBiometrics();
 
     if (!isAuthenticated) {
-      Get.snackbar("Failed", "Biometric authentication failed.");
+      Get.snackbar(
+        "Authentication Failed",
+        "Biometric authentication failed.",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
       return;
     }
 
@@ -184,8 +302,10 @@ class _LoginState extends State<Login> {
 
     if (uid == null || role == null || email == null) {
       Get.snackbar(
-        "Error",
-        "Biometric matched, but no saved session found. Please login manually.",
+        "Session Not Found",
+        "Please login manually first.",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
       );
       return;
     }
@@ -196,8 +316,10 @@ class _LoginState extends State<Login> {
 
       if (!doc.exists) {
         Get.snackbar(
-          "Error",
-          "User not found in Firestore. Please login manually.",
+          "User Not Found",
+          "Please login manually.",
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
         );
         return;
       }
@@ -206,56 +328,299 @@ class _LoginState extends State<Login> {
           ? Get.offAll(() => const StudentHomepage())
           : Get.offAll(() => const TeacherHomepage());
     } catch (e) {
-      Get.snackbar("Error", e.toString());
+      Get.snackbar(
+        "Error",
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return isloading
-        ? const Center(child: CircularProgressIndicator())
-        : Scaffold(
-          appBar: AppBar(title: const Text("Login")),
-          body: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                TextField(
-                  controller: email,
-                  decoration: const InputDecoration(hintText: 'Enter email'),
+    if (isloading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(color: primaryBlue, strokeWidth: 2),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 60),
+
+                      // Logo and Title
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: primaryYellow,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: primaryBlue, width: 3),
+                        ),
+                        child: const Icon(
+                          Icons.school,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      const Text(
+                        "Welcome Back",
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: textDark,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      const Text(
+                        "Sign in to your account",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: textLight,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+
+                      const SizedBox(height: 48),
+
+                      // Login Form
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Email Field
+                          _buildTextField(
+                            controller: email,
+                            hintText: "Email",
+                            icon: Icons.mail_outline,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Password Field
+                          _buildTextField(
+                            controller: password,
+                            hintText: "Password",
+                            icon: Icons.lock_outline,
+                            obscureText: _obscurePassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: textLight,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // Forgot Password
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () => Get.to(() => const Forgot()),
+                              child: const Text(
+                                "Forgot Password?",
+                                style: TextStyle(
+                                  color: primaryBlue,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Login Button
+                          SizedBox(
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: signIn,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                "Sign In",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Divider
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Divider(color: Colors.grey.shade300),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  "or",
+                                  style: TextStyle(
+                                    color: textLight,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Divider(color: Colors.grey.shade300),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Google Sign In
+                          SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: signInWithGoogle,
+                              icon: const Icon(Icons.login, size: 20),
+                              label: const Text("Continue with Google"),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: textDark,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Biometric Sign In
+                          SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: signInWithBiometrics,
+                              icon: const Icon(Icons.fingerprint, size: 20),
+                              label: const Text("Use Biometrics"),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: textDark,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const Spacer(),
+
+                      // Sign Up Link
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              "Don't have an account? ",
+                              style: TextStyle(color: textLight, fontSize: 14),
+                            ),
+                            TextButton(
+                              onPressed: () => Get.to(() => const Signup()),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                "Sign Up",
+                                style: TextStyle(
+                                  color: primaryBlue,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                TextField(
-                  controller: password,
-                  obscureText: true,
-                  decoration: const InputDecoration(hintText: 'Enter password'),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(onPressed: signIn, child: const Text("Login")),
-                const SizedBox(height: 10),
-                ElevatedButton.icon(
-                  onPressed: signInWithGoogle,
-                  icon: const Icon(Icons.login),
-                  label: const Text("Sign in with Google"),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton.icon(
-                  onPressed: signInWithBiometrics,
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text("Login with Biometrics"),
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: () => Get.to(() => const Signup()),
-                  child: const Text("Register now"),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () => Get.to(() => const Forgot()),
-                  child: const Text("Forgot password"),
-                ),
-              ],
-            ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: lightGray,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontSize: 16, color: textDark),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(color: textLight, fontSize: 16),
+          prefixIcon: Icon(icon, color: textLight, size: 20),
+          suffixIcon: suffixIcon,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
           ),
-        );
+        ),
+      ),
+    );
   }
 }

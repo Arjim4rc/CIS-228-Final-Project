@@ -8,6 +8,16 @@ class TeacherAttendancePage extends StatelessWidget {
 
   const TeacherAttendancePage({super.key, required this.classCode});
 
+  Future<int> _getTotalStudents() async {
+    final studentsSnapshot =
+        await FirebaseFirestore.instance
+            .collection('classes')
+            .doc(classCode)
+            .collection('students')
+            .get();
+    return studentsSnapshot.size;
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -24,42 +34,98 @@ class TeacherAttendancePage extends StatelessWidget {
           ),
           title: const Text('📅 Attendance Records'),
         ),
-        body: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('classes')
-              .doc(classCode)
-              .collection('attendance')
-              .orderBy('timestamp', descending: true)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        body: FutureBuilder<int>(
+          future: _getTotalStudents(),
+          builder: (context, totalStudentsSnapshot) {
+            if (totalStudentsSnapshot.connectionState ==
+                ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text("No attendance records yet."));
+            if (!totalStudentsSnapshot.hasData) {
+              return const Center(child: Text("Failed to load student count."));
             }
+            final totalStudents = totalStudentsSnapshot.data!;
 
-            final records = snapshot.data!.docs;
+            return StreamBuilder<QuerySnapshot>(
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('classes')
+                      .doc(classCode)
+                      .collection('attendance')
+                      .orderBy(FieldPath.documentId, descending: true)
+                      .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            return ListView.builder(
-              itemCount: records.length,
-              itemBuilder: (context, index) {
-                final data = records[index].data() as Map<String, dynamic>;
-                final date = data['timestamp'] != null
-                    ? (data['timestamp'] as Timestamp).toDate().toLocal().toString().split(' ')[0]
-                    : 'Unknown';
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text("No attendance records yet."),
+                  );
+                }
 
-                return ListTile(
-                  leading: const Icon(Icons.calendar_today),
-                  title: Text("Date: $date"),
-                  subtitle: Text("On Time: ${data['onTime'] ?? 0} | Late: ${data['late'] ?? 0} | Absent: ${data['absent'] ?? 0}"),
+                final attendanceDates = snapshot.data!.docs;
+
+                return ListView.builder(
+                  itemCount: attendanceDates.length,
+                  itemBuilder: (context, index) {
+                    final dateDoc = attendanceDates[index];
+                    final dateStr = dateDoc.id; // e.g. '2023-05-26'
+
+                    return FutureBuilder<QuerySnapshot>(
+                      future: dateDoc.reference.collection('records').get(),
+                      builder: (context, recordsSnapshot) {
+                        if (recordsSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return ListTile(
+                            title: Text("Date: $dateStr"),
+                            subtitle: const Text("Loading attendance data..."),
+                          );
+                        }
+
+                        if (!recordsSnapshot.hasData ||
+                            recordsSnapshot.data!.docs.isEmpty) {
+                          return ListTile(
+                            title: Text("Date: $dateStr"),
+                            subtitle: const Text("No attendance data"),
+                          );
+                        }
+
+                        int onTime = 0;
+                        int late = 0;
+
+                        for (var rec in recordsSnapshot.data!.docs) {
+                          final data = rec.data() as Map<String, dynamic>;
+                          if (data['isLate'] == true) {
+                            late++;
+                          } else {
+                            onTime++;
+                          }
+                        }
+
+                        int absent = totalStudents - (onTime + late);
+                        if (absent < 0) absent = 0; // just in case
+
+                        return ListTile(
+                          leading: const Icon(Icons.calendar_today),
+                          title: Text("Date: $dateStr"),
+                          subtitle: Text(
+                            "On Time: $onTime | Late: $late | Absent: $absent",
+                          ),
+                        );
+                      },
+                    );
+                  },
                 );
               },
             );
           },
         ),
-        bottomNavigationBar: TeacherBottomNavBar(currentIndex: 1, classCode: classCode),
+        bottomNavigationBar: TeacherBottomNavBar(
+          currentIndex: 1,
+          classCode: classCode,
+        ),
       ),
     );
   }

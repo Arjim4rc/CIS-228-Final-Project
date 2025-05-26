@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../activate_nfc.dart';  // Make sure this import path is correct
+import '../student_nfc.dart'; // NFC attendance page for students
 
 class StudentClassPage extends StatelessWidget {
   final String classCode;
@@ -10,7 +10,13 @@ class StudentClassPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Class Info")),
+      backgroundColor: const Color(0xFFF0F4FF), // Light blue background
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D47A1), // Deep blue
+        foregroundColor: Colors.white,
+        title: const Text("Class Details"),
+        elevation: 0,
+      ),
       body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance.collection('classes').doc(classCode).get(),
         builder: (context, snapshot) {
@@ -25,104 +31,108 @@ class StudentClassPage extends StatelessWidget {
           final classData = snapshot.data!.data() as Map<String, dynamic>;
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Class Image
+                // Class image
                 Center(
-                  child: classData['imageUrl'] != null &&
-                          classData['imageUrl'].toString().startsWith('http')
-                      ? Image.network(classData['imageUrl'], height: 180)
-                      : Image.asset('assets/classImage.png', height: 180),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: classData['imageUrl'] != null &&
+                            classData['imageUrl'].toString().startsWith('http')
+                        ? Image.network(classData['imageUrl'], height: 180, fit: BoxFit.cover)
+                        : Image.asset('assets/classImage.png', height: 180, fit: BoxFit.cover),
+                  ),
                 ),
-
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Class Name
                 Text(
                   classData['className'] ?? 'Unnamed Class',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
                 ),
-
-                const SizedBox(height: 10),
+                const SizedBox(height: 20),
 
                 // Schedule
-                Row(
-                  children: [
-                    const Icon(Icons.schedule, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      classData['schedule'] ?? 'N/A',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ],
-                ),
+                buildInfoRow(Icons.schedule, "Schedule", classData['schedule'] ?? 'N/A', iconColor: Colors.indigo),
 
                 const SizedBox(height: 10),
 
                 // Class Code
-                Row(
-                  children: [
-                    const Icon(Icons.vpn_key, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      classData['classCode'] ?? 'N/A',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ],
-                ),
+                buildInfoRow(Icons.vpn_key, "Class Code", classData['classCode'] ?? 'N/A', iconColor: Colors.orange),
 
                 const SizedBox(height: 10),
 
-                // Teacher Info
-                Row(
-                  children: [
-                    const Icon(Icons.person, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Teacher ID: ${classData['teacherId'] ?? 'Unknown'}',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  ],
-                ),
+                // Teacher ID
+                buildInfoRow(Icons.person, "Teacher ID", classData['teacherId'] ?? 'Unknown', iconColor: Colors.grey),
 
                 const SizedBox(height: 30),
 
-                // Activate Attendance Button for students (for testing NFC tap)
+                // Attendance button
                 Center(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.nfc),
-                    label: const Text("Activate Attendance"),
+                    label: const Text("Tap to Mark Attendance"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                      backgroundColor: const Color(0xFFFFD600), // Yellow
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
                     ),
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ActivateNFC(classCode: classCode),
+                          builder: (context) => StudentNFCPage(classCode: classCode),
                         ),
                       );
                     },
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: 40),
 
-                const Divider(),
+                const Divider(thickness: 1),
+                const SizedBox(height: 10),
+
                 const Text(
-                  '📌 Announcements / Notes:',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  '📌 Announcements / Notes',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
                 const SizedBox(height: 10),
-                const Text("This section can include class announcements or messages in the future."),
+                const Text(
+                  "This section can include class announcements or messages in the future.",
+                  style: TextStyle(fontSize: 15, color: Colors.black54),
+                ),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget buildInfoRow(IconData icon, String label, String value, {Color iconColor = Colors.black87}) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: iconColor),
+        const SizedBox(width: 10),
+        Text(
+          "$label: ",
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 16),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

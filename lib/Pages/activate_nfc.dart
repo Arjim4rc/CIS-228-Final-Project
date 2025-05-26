@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:nfc_manager/nfc_manager.dart';
-import 'package:nfc_manager/platform_tags.dart';
+/*import 'package:flutter/material.dart';
+import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ActivateNFC extends StatefulWidget {
@@ -15,21 +14,112 @@ class ActivateNFC extends StatefulWidget {
 class _ActivateNFCState extends State<ActivateNFC> {
   bool isNfcActive = false;
   TimeOfDay? lateThreshold;
+  Set<String> tappedStudentIds = {};
+  String statusMessage = 'Tap student phones to mark attendance...';
 
   int onTimeCount = 0;
   int lateCount = 0;
-  int absentCount = 0;
 
-  String statusMessage = 'Tap student phones to mark attendance...';
+  void startNfcSession() async {
+  if (lateThreshold == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a late threshold time first.')),
+    );
+    return;
+  }
 
-  Set<String> tappedStudentIds = {};
+  setState(() {
+    isNfcActive = true;
+    statusMessage = 'NFC Activated. Waiting for taps...';
+  });
 
-  @override
-  void dispose() {
-    if (isNfcActive) {
-      NfcManager.instance.stopSession();
+  while (isNfcActive) {
+    try {
+      final tag = await FlutterNfcKit.poll();
+      final studentId = tag.id.toUpperCase(); // NFC tag UID as uppercase hex
+
+      if (tappedStudentIds.contains(studentId)) {
+        setState(() => statusMessage = 'Already marked: $studentId');
+        await FlutterNfcKit.finish();
+        continue;
+      }
+
+      // ✅ Ask for confirmation before marking attendance
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Confirm Tag'),
+          content: Text('Confirm attendance for student ID:\n\n$studentId'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+
+      await FlutterNfcKit.finish(); // Make sure session is finished before looping
+
+      if (confirm != true) {
+        setState(() => statusMessage = 'Cancelled: $studentId');
+        continue;
+      }
+
+      tappedStudentIds.add(studentId);
+
+      final now = DateTime.now();
+      final threshold = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        lateThreshold!.hour,
+        lateThreshold!.minute,
+      );
+
+      final isLate = now.isAfter(threshold);
+      await _saveAttendanceRecord(studentId, now, isLate);
+
+      final timeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      setState(() {
+        if (isLate) {
+          lateCount++;
+          statusMessage = 'Late: $studentId at $timeStr';
+        } else {
+          onTimeCount++;
+          statusMessage = 'On-time: $studentId at $timeStr';
+        }
+      });
+    } catch (e) {
+      setState(() => statusMessage = 'Error: $e');
+      await FlutterNfcKit.finish();
     }
-    super.dispose();
+  }
+}
+
+
+  Future<void> _saveAttendanceRecord(String studentId, DateTime timestamp, bool isLate) async {
+    final classDoc = FirebaseFirestore.instance.collection('classes').doc(widget.classCode);
+    final attendanceCollection = classDoc.collection('attendance');
+
+    final dateStr = "${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}";
+
+    await attendanceCollection.doc(dateStr).collection('records').doc(studentId).set({
+      'studentId': studentId,
+      'timestamp': timestamp,
+      'isLate': isLate,
+    });
+  }
+
+  void stopNfcSession() {
+    setState(() {
+      isNfcActive = false;
+      statusMessage = 'NFC Deactivated.';
+    });
   }
 
   void pickLateTime() async {
@@ -38,233 +128,52 @@ class _ActivateNFCState extends State<ActivateNFC> {
       initialTime: TimeOfDay.now(),
     );
     if (picked != null) {
-      setState(() {
-        lateThreshold = picked;
-      });
+      setState(() => lateThreshold = picked);
     }
-  }
-
-  void startNfcSession() {
-    if (lateThreshold == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a late threshold time first.'),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      isNfcActive = true;
-      onTimeCount = 0;
-      lateCount = 0;
-      absentCount = 0;
-      tappedStudentIds.clear();
-      statusMessage = 'NFC Activated. Waiting for taps...';
-    });
-
-    NfcManager.instance.startSession(
-      pollingOptions: {NfcPollingOption.iso14443},
-      onDiscovered: (NfcTag tag) async {
-        try {
-          // Use NfcA wrapper to access identifier safely
-          final nfcA = NfcA.from(tag);
-          if (nfcA == null) {
-            setState(() => statusMessage = 'NFC-A tag not found.');
-            return;
-          }
-
-          final identifier = nfcA.identifier;
-          if (identifier == null || identifier.isEmpty) {
-            setState(() => statusMessage = 'Tag identifier not found.');
-            return;
-          }
-
-          final studentId =
-              identifier
-                  .map((b) => b.toRadixString(16).padLeft(2, '0'))
-                  .join()
-                  .toUpperCase();
-
-          if (tappedStudentIds.contains(studentId)) {
-            setState(
-              () =>
-                  statusMessage =
-                      'Student $studentId already marked attendance.',
-            );
-            return;
-          }
-
-          tappedStudentIds.add(studentId);
-
-          DateTime now = DateTime.now();
-          DateTime lateThresholdDateTime = DateTime(
-            now.year,
-            now.month,
-            now.day,
-            lateThreshold!.hour,
-            lateThreshold!.minute,
-          );
-
-          bool isLate = now.isAfter(lateThresholdDateTime);
-
-          await _saveAttendanceRecord(studentId, now, isLate);
-
-          setState(() {
-            if (isLate) {
-              lateCount++;
-              statusMessage = 'Late attendance marked for student $studentId.';
-            } else {
-              onTimeCount++;
-              statusMessage =
-                  'On-time attendance marked for student $studentId.';
-            }
-          });
-        } catch (e) {
-          setState(() => statusMessage = 'Error reading tag: $e');
-        }
-      },
-    );
-  }
-
-  Future<void> _saveAttendanceRecord(
-    String studentId,
-    DateTime timestamp,
-    bool isLate,
-  ) async {
-    final classDoc = FirebaseFirestore.instance
-        .collection('classes')
-        .doc(widget.classCode);
-    final attendanceCollection = classDoc.collection('attendance');
-
-    final dateStr = DateTime(
-      timestamp.year,
-      timestamp.month,
-      timestamp.day,
-    ).toIso8601String().substring(0, 10);
-
-    final dayAttendanceDoc = attendanceCollection.doc(dateStr);
-    final studentAttendanceDoc = dayAttendanceDoc
-        .collection('records')
-        .doc(studentId);
-
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
-      final dayDocSnapshot = await transaction.get(dayAttendanceDoc);
-      if (!dayDocSnapshot.exists) {
-        transaction.set(dayAttendanceDoc, {
-          'date': dateStr,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      transaction.set(studentAttendanceDoc, {
-        'studentId': studentId,
-        'timestamp': timestamp,
-        'isLate': isLate,
-      });
-    });
-  }
-
-  void stopNfcSession() {
-    NfcManager.instance.stopSession();
-    setState(() {
-      isNfcActive = false;
-      statusMessage = 'NFC Deactivated. You can save or discard attendance.';
-    });
-  }
-
-  void saveAttendance() {
-    Navigator.pop(context);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Attendance saved.")));
-  }
-
-  void discardAttendance() {
-    Navigator.pop(context);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Attendance discarded.")));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Activate Attendance")),
+      appBar: AppBar(title: const Text('Activate Attendance')),
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "📘 Class Code: ${widget.classCode}",
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 20),
-
+            Text('Class Code: ${widget.classCode}'),
+            const SizedBox(height: 10),
             Row(
               children: [
-                const Text("⏰ Late After: ", style: TextStyle(fontSize: 16)),
+                const Text('Late After: '),
                 ElevatedButton(
                   onPressed: pickLateTime,
-                  child: Text(
-                    lateThreshold != null
-                        ? lateThreshold!.format(context)
-                        : "Select Time",
-                  ),
+                  child: Text(lateThreshold != null ? lateThreshold!.format(context) : 'Select Time'),
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
             isNfcActive
                 ? ElevatedButton.icon(
-                  icon: const Icon(Icons.stop_circle),
-                  label: const Text("Deactivate NFC"),
-                  onPressed: stopNfcSession,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                )
+                    onPressed: stopNfcSession,
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Stop NFC'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  )
                 : ElevatedButton.icon(
-                  icon: const Icon(Icons.nfc),
-                  label: const Text("Activate NFC"),
-                  onPressed: startNfcSession,
-                ),
-
-            const SizedBox(height: 30),
-
-            Text(statusMessage, style: const TextStyle(fontSize: 16)),
-
+                    onPressed: startNfcSession,
+                    icon: const Icon(Icons.nfc),
+                    label: const Text('Start NFC'),
+                  ),
             const SizedBox(height: 20),
-
+            Text(statusMessage),
+            const SizedBox(height: 10),
             if (!isNfcActive) ...[
-              Row(
-                children: [
-                  ElevatedButton(
-                    onPressed: saveAttendance,
-                    child: const Text("✅ Save"),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: discardAttendance,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey,
-                    ),
-                    child: const Text("❌ Discard"),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                "Summary:\n"
-                "- On Time: $onTimeCount\n"
-                "- Late: $lateCount\n"
-                "- Absent: $absentCount\n",
-              ),
+              Text("Summary:\n- On Time: $onTimeCount\n- Late: $lateCount"),
             ],
           ],
         ),
       ),
     );
   }
-}
+}*/
